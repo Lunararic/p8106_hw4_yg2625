@@ -1,0 +1,72 @@
+---
+title: "p8106_hw4_yg2625"
+author: "Yue Gu"
+date: "April 21, 2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(lasso2) # only for data
+library(ISLR)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(party)
+library(partykit)
+library(randomForest)
+library(ranger)
+library(gbm)
+library(plotmo)
+library(pdp)
+library(lime)
+library(tidyverse)
+set.seed(1)
+```
+
+**1. This problem involves the Prostate data in the lasso2 package (see L5.Rmd). Use set.seed() for reproducible results.**
+
+## load data
+```{r}
+data("Prostate")
+pros_data = Prostate%>% 
+  janitor::clean_names()
+```
+
+
+# (a) Fit a regression tree with lpsa as the response and the other variables as predictors. Use cross-validation to determine the optimal tree size. Which tree size corresponds to the lowest cross-validation error? Is this the same as the tree size obtained using the 1 SE rule?
+
+
+```{r}
+# use cross-validation through caret
+ctrl <- trainControl(method = "cv")
+
+# tune over cp, method = "rpart"
+rpart.fit <- train(lpsa ~ ., pros_data, 
+                   method = "rpart",
+                   tuneGrid = data.frame(cp = exp(seq(-6,-2, length = 20))),
+                   trControl = ctrl)
+ggplot(rpart.fit, highlight = TRUE)
+# cptable showed that the optimal tree size is 8
+rpart.fit$finalModel$cptable
+rpart.plot(rpart.fit$finalModel)
+
+# fit regression tree with default cp=0.01
+tree1 = rpart(lpsa ~ ., pros_data)
+# show cptable
+cpTable = printcp(tree1)
+
+# prune the tree based on cptable
+minErr = which.min(cpTable[,4]);minErr
+# minimum cross-validation error, use cp=8 with minimum CV error
+tree2 <- prune(tree1, cp = cpTable[minErr,1])
+rpart.plot(tree2)
+
+# 1SE rule, use cp=4 with 1SE rule
+min_1se = cpTable[cpTable[,4] < cpTable[minErr,4] + cpTable[minErr,5],1][1]; min_1se
+tree3 <- prune(tree1, cp = min_1se)
+rpart.plot(tree3)
+```
+
+Based on the result, cross-validation showed that the optimal tree size is 8 while 1SE obtained optimal tree size as 3. Hence, 1SE rule generates tree with smaller size.
+
