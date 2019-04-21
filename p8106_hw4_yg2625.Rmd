@@ -42,31 +42,120 @@ pros_data = Prostate%>%
 ctrl <- trainControl(method = "cv")
 
 # tune over cp, method = "rpart"
-rpart.fit <- train(lpsa ~ ., pros_data, 
+rpart.fit1 <- train(lpsa ~ ., pros_data, 
                    method = "rpart",
                    tuneGrid = data.frame(cp = exp(seq(-6,-2, length = 20))),
                    trControl = ctrl)
-ggplot(rpart.fit, highlight = TRUE)
+ggplot(rpart.fit1, highlight = TRUE)
 # cptable showed that the optimal tree size is 8
-rpart.fit$finalModel$cptable
-rpart.plot(rpart.fit$finalModel)
+rpart.fit1$finalModel$cptable
+rpart.plot(rpart.fit1$finalModel)
 
-# fit regression tree with default cp=0.01
-tree1 = rpart(lpsa ~ ., pros_data)
-# show cptable
-cpTable = printcp(tree1)
 
-# prune the tree based on cptable
-minErr = which.min(cpTable[,4]);minErr
-# minimum cross-validation error, use cp=8 with minimum CV error
-tree2 <- prune(tree1, cp = cpTable[minErr,1])
-rpart.plot(tree2)
+# use 1SE through caret
+rpart.fit2 <- train(lpsa ~ ., pros_data, 
+                   method = "rpart",
+                   tuneGrid = data.frame(cp = exp(seq(-6,-2, length = 20))),
+                   trControl = trainControl(method = 'cv',
+                                            number = 10,
+                                            selectionFunction = 'oneSE'))
 
-# 1SE rule, use cp=4 with 1SE rule
-min_1se = cpTable[cpTable[,4] < cpTable[minErr,4] + cpTable[minErr,5],1][1]; min_1se
-tree3 <- prune(tree1, cp = min_1se)
-rpart.plot(tree3)
+# cptable showed that the optimal tree size is 3
+rpart.fit2$finalModel$cptable
+rpart.plot(rpart.fit2$finalModel)
 ```
 
 Based on the result, cross-validation showed that the optimal tree size is 8 while 1SE obtained optimal tree size as 3. Hence, 1SE rule generates tree with smaller size.
+
+# (b) Create a plot of the final tree you choose. Pick one of the terminal nodes, and interpret the information displayed.
+
+```{r}
+resamp = resamples(list(minErr = rpart.fit1, min_1se = rpart.fit2))
+summary(resamp)
+```
+Since two regression generates similar RMSE. Following principle of parsimony, we choose the simpler model with tree using 1SE principle. And the plot is shown below:
+```{r}
+rpart.plot(rpart.fit2$finalModel)
+```
+**Interpretation:** The regression tree pruned by 1SE rule has size as 3. When log(cancer volume)(lcavol) is greater than 2.5, the log(prostate specific antigen) is predicted to be 3.8, which contains 22% of the trainning observations.
+
+
+# (c) Perform bagging and report the variable importance.
+```{r}
+bagging <- ranger(lpsa ~., pros_data,
+                        mtry = 8, splitrule = "variance",
+                        min.node.size = 30,
+                        importance = "permutation",
+                        scale.permutation.importance = TRUE) 
+
+barplot(sort(ranger::importance(bagging), decreasing = FALSE), 
+        las = 2, horiz = TRUE, cex.names = 0.7,
+        col = colorRampPalette(colors = c("darkred","white","darkblue"))(19))
+```
+Based on the output, variable importance ranking: lcavol>lweight>svi>pgg45>lcp>gleason>lbph>age.
+
+# (d) Perform random forests and report the variable importance.
+```{r}
+set.seed(1)
+rf.grid <- expand.grid(mtry = 1:8,
+                       splitrule = "variance",
+                       min.node.size = 1:30)
+
+rf.fit <- train(lpsa ~ ., pros_data,
+                method = "ranger",
+                tuneGrid = rf.grid,
+                trControl = ctrl)
+# get best tuning parameter alpha = 5
+rf.fit$bestTune
+# random forests plot
+ggplot(rf.fit, highlight = TRUE)
+# fit random forest model using best tuning parameter
+rf <- ranger(lpsa ~., pros_data,
+                        mtry = 5, splitrule = "variance",
+                        min.node.size = 30,
+                        importance = "permutation",
+                        scale.permutation.importance = TRUE) 
+
+barplot(sort(ranger::importance(rf), decreasing = FALSE), 
+        las = 2, horiz = TRUE, cex.names = 0.7,
+        col = colorRampPalette(colors = c("darkred","white","darkblue"))(19))
+summary(rf.fit)
+```
+Based on the output, variable importance ranking: lcavol>lweight>svi>pgg45>lcp>lbph>gleason>age.
+
+# (e) Perform boosting and report the variable importance.
+```{r}
+set.seed(1)
+gbm.grid <- expand.grid(n.trees = c(2000,2500,3000,3500,4000,4500,5000),
+                        interaction.depth = 1:5,
+                        shrinkage = c(0.001,0.003,0.005),
+                        n.minobsinnode = 1)
+
+gbm.fit <- train(lpsa ~ ., pros_data, 
+                 tuneGrid = gbm.grid,
+                 trControl = ctrl,
+                 method = "gbm",
+                 verbose = FALSE)
+# boosting plot
+ggplot(gbm.fit, highlight = TRUE)
+# best tunning parameter alph = 38
+gbm.fit$bestTune
+# summary output
+summary(gbm.fit)
+```
+Based on the result, variable importance ranking: lcavol>lweight>svi>lcp>pgg45>age>lbph>gleason.
+
+# (f) Which of the above models will you select to predict PSA level? Explain.
+```{r}
+resamp2 = resamples(list(minErr = rpart.fit1, 
+                         min_1se = rpart.fit2,
+                         randomForest = rf.fit,
+                         boosting = gbm.fit))
+
+summary(resamp2)
+ggplot(resamp2, "RMSE") +
+  labs(y = 'RMSE')
+```
+Based on the output, simple linear regression trees method including minimum CV error and 1SE principle methods generates model with larger RMSE than ensemble methods(bagging, random forest, boosting). And bagging being a special case of random forest selecting 8 predictors(mtry = 8), violated principle of parsimony compared to random forest and boosting methods. Boosting generates model with smaller RMSE than randomForest. Hence, boosting model is most preferrable.
+
 
