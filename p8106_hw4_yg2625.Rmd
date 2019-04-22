@@ -232,7 +232,34 @@ pred2 = predict(rf.fit_oj, newdata = test_data,
 # test error rate
 1 - mean(test_data$purchase == pred2)
 ```
-Based on the result, variable importance ranking top 5: 
+Based on the result, variable importance ranking top 5(based on impurity): 
 loyal_ch > price_diff > store_id > list_price_diff > week_of_purchase, and store7Yes has least importance. The test error rate is 0.185.
 
+# (c) Perform boosting on the training set and report variable importance. What is the test error rate?
 
+```{r}
+set.seed(1)
+gbm.grid_oj <- expand.grid(n.trees = seq(2000,5000,1000),
+                        interaction.depth = 1:6,
+                        shrinkage = c(0.001,0.003,0.005),
+                        n.minobsinnode = 1)
+
+gbm.fit_oj <- train(purchase ~ ., train_data,
+                 tuneGrid = gbm.grid_oj,
+                 trControl = ctrl2,
+                 method = "gbm",
+                 distribution = "bernoulli",
+                 metric = "ROC",
+                 verbose = FALSE)
+# boosting plot
+ggplot(gbm.fit_oj, highlight = TRUE)
+# showing boosting output to compare variable importance
+summary(gbm.fit_oj, las = 2, cex.names = 0.7)
+# predict on test data
+pred3 = predict(gbm.fit_oj, newdata = test_data,
+               type = "raw");pred
+# test error rate
+1 - mean(test_data$purchase == pred3)
+```
+Based on the output, variable importance ranking top 5: 
+loyal_ch > price_diff > list_price_diff > week_of_purchase > sale_price_mm, and store7Yes has least importance. The test error rate is 0.193.
