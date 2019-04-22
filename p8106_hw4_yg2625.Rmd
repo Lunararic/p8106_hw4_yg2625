@@ -120,7 +120,7 @@ barplot(sort(ranger::importance(rf), decreasing = FALSE),
         las = 2, horiz = TRUE, cex.names = 0.7,
         col = colorRampPalette(colors = c("darkred","white","darkblue"))(19))
 ```
-Based on the output, variable importance ranking: lcavol>lweight>svi>pgg45>lcp>lbph>gleason>age.
+Based on the output, variable importance ranking: lcavol>lweight>svi>pgg45>lcp>gleason>lbph>age.
 
 # (e) Perform boosting and report the variable importance.
 ```{r}
@@ -137,10 +137,10 @@ gbm.fit <- train(lpsa ~ ., pros_data,
                  verbose = FALSE)
 # boosting plot
 ggplot(gbm.fit, highlight = TRUE)
-# best tunning parameter alph = 38
+# best tunning parameter alpha = 38
 gbm.fit$bestTune
 # summary output
-summary(gbm.fit)
+summary(gbm.fit, las = 2, cex.names = 0.7)
 ```
 Based on the result, variable importance ranking: lcavol>lweight>svi>lcp>pgg45>age>lbph>gleason.
 
@@ -156,7 +156,8 @@ bwplot(resamp2, metric = "RMSE")
 ```
 Based on the output, simple regression trees method including minimum CV error and 1SE principle methods generates model with larger RMSE than ensemble methods(bagging, random forest, boosting). And bagging being a special case of random forest selecting 8 predictors(mtry = 8) without tunning, violated principle of parsimony compared to random forest and boosting methods. Boosting generates model with smaller RMSE than randomForest. Hence, boosting model is most preferrable.
 
-**2. This problem involves the OJ data in the ISLR package. The data contains 1070 purchases where the customers either purchased Citrus Hill or Minute Maid Orange Juice. A number of characteristics of customers and products are recorded. Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations. Use set.seed() for reproducible results.**
+**2. This problem involves the OJ data in the ISLR package. The data contains 1070 purchases where the customers either purchased Citrus Hill or Minute Maid Orange Juice. A number of characteristics of customers and products are recorded. Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations. Use set.seed() for reproducible results.**  
+
 ## load data
 ```{r}
 data(OJ)
