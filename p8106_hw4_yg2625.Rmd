@@ -119,7 +119,6 @@ rf <- ranger(lpsa ~., pros_data,
 barplot(sort(ranger::importance(rf), decreasing = FALSE), 
         las = 2, horiz = TRUE, cex.names = 0.7,
         col = colorRampPalette(colors = c("darkred","white","darkblue"))(19))
-summary(rf.fit)
 ```
 Based on the output, variable importance ranking: lcavol>lweight>svi>pgg45>lcp>lbph>gleason>age.
 
@@ -153,9 +152,62 @@ resamp2 = resamples(list(minErr = rpart.fit1,
                          boosting = gbm.fit))
 
 summary(resamp2)
-ggplot(resamp2, "RMSE") +
-  labs(y = 'RMSE')
+bwplot(resamp2, metric = "RMSE")
 ```
-Based on the output, simple linear regression trees method including minimum CV error and 1SE principle methods generates model with larger RMSE than ensemble methods(bagging, random forest, boosting). And bagging being a special case of random forest selecting 8 predictors(mtry = 8), violated principle of parsimony compared to random forest and boosting methods. Boosting generates model with smaller RMSE than randomForest. Hence, boosting model is most preferrable.
+Based on the output, simple regression trees method including minimum CV error and 1SE principle methods generates model with larger RMSE than ensemble methods(bagging, random forest, boosting). And bagging being a special case of random forest selecting 8 predictors(mtry = 8) without tunning, violated principle of parsimony compared to random forest and boosting methods. Boosting generates model with smaller RMSE than randomForest. Hence, boosting model is most preferrable.
+
+**2. This problem involves the OJ data in the ISLR package. The data contains 1070 purchases where the customers either purchased Citrus Hill or Minute Maid Orange Juice. A number of characteristics of customers and products are recorded. Create a training set containing a random sample of 800 observations, and a test set containing the remaining observations. Use set.seed() for reproducible results.**
+## load data
+```{r}
+data(OJ)
+oj_data = OJ %>% 
+  janitor::clean_names()
+
+# create a training set containing 800 obs
+set.seed(1)
+rowTrain = createDataPartition(y = oj_data$purchase,
+                               p = 799/1070,
+                               list = F)
+
+train_data = oj_data[rowTrain, ]
+test_data = oj_data[-rowTrain, ]
+# check whether there is 800 obs
+dim(train_data)
+```
+
+
+# (a) Fit a classification tree to the training set, with Purchase as the response and the other variables as predictors. Use cross-validation to determine the tree size and create a plot of the final tree. Predict the response on the test data. What is the test classification error rate?
+
+```{r}
+ctrl2 <- trainControl(method = "repeatedcv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE)
+
+set.seed(1)
+rpart.fit_oj <- train(purchase ~ ., train_data,
+                   method = "rpart",
+                   tuneGrid = data.frame(cp = exp(seq(-20,-5, len = 20))),
+                   trControl = ctrl2,
+                   metric = "ROC")
+
+ggplot(rpart.fit_oj, highlight = TRUE)
+# optimal tree size is 17 with smallest CV error
+rpart.fit_oj$finalModel$cptable
+
+# plot of tree
+rpart.plot(rpart.fit_oj$finalModel)
+
+# predict response on test data
+pred = predict(rpart.fit_oj, newdata = test_data,
+               type = "raw");pred
+
+# test classification error rate
+1 - mean(test_data$purchase == pred)
+```
+Hence, the optimal tree size is 17 and the test classification error rate is 0.207.
+
+# (b) Perform random forests on the training set and report variable importance. What is the test error rate?
+```{r}
+```
 
 
